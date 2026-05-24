@@ -1,72 +1,65 @@
 # MECHAMIND
 
-**Regolamento Tecnico v1.1**
+**Technical Rules v1.1**
 
-*Gioco di combattimento tra veicoli guidati da programmi*
+*Turn-based combat between program-controlled vehicles*
 
-> Documento convertito da `MechaMind_Regolamento_v1.docx` e aggiornato
-> all'implementazione del server Node.js in questo repository (protocollo
-> WebSocket, REST di sola osservazione).
->
-> **English version:** [MechaMind_Rules_v1.md](./MechaMind_Rules_v1.md)
+> Converted from `MechaMind_Regolamento_v1.docx` and aligned with the Node.js
+> server in this repository (WebSocket gameplay, read-only REST monitoring).
+> Italian version: [MechaMind_Regolamento_v1.md](./MechaMind_Regolamento_v1.md)
 
 ---
 
-## 1. Panoramica
+## 1. Overview
 
-MechaMind è un gioco di combattimento a turni tra due veicoli controllati da
-programmi (bot remoti, client GUI o LLM). I veicoli si affrontano su una griglia
-discreta 100×100. Vince chi distrugge il veicolo avversario riducendone la
-**Corazza** a zero.
-
----
-
-## 2. Costruzione del Mecha
-
-### 2.1 Punti Build
-
-Ogni mecha dispone di **100 punti build** da distribuire tra i sei componenti.
-Ogni componente deve ricevere almeno **5** punti e al massimo **70**. La somma
-deve essere esattamente **100**.
-
-- Minimo per attributo: **5** punti (vincolo su tutti e sei i componenti)
-- Massimo per attributo: **70** punti
-- Somma totale: esattamente **100** punti
-- Campi obbligatori: `generator`, `hull`, `shields`, `cannon`, `propulsion`, `radar`
-
-### 2.2 Componenti
-
-| Componente   | Min | Max | Effetto |
-|--------------|-----|-----|---------|
-| Generatore   | 5   | 70  | Produce N energia all'inizio di ogni turno |
-| Corazza      | 5   | 70  | Punti strutturali. A 0 → distrutto |
-| Scudi        | 5   | 70  | Buffer danni. Valore massimo = punti investiti |
-| Cannone      | 5   | 70  | Danno massimo per colpo = energia investita (≤ punti cannone) |
-| Propulsione  | 5   | 70  | Celle percorribili per turno = energia investita (≤ punti propulsione) |
-| Radar        | 5   | 70  | Energia max investibile in SCAN per turno |
-
-*Nota: i punti investiti in un componente definiscono il **massimo erogabile**
-per turno su quell'azione, non un valore fisso. Il programma può sempre
-scegliere di usarne meno.*
+MechaMind is a turn-based combat game for two vehicles controlled by programs
+(remote bots, the Flutter GUI, or LLM agents via MCP). Combat takes place on a
+discrete **100×100** grid. You win by destroying the opponent’s vehicle — reducing
+**Hull** to zero.
 
 ---
 
-## 3. Registrazione del Mecha
+## 2. Mecha Build
 
-### 3.1 Connessione WebSocket
+### 2.1 Build Points
 
-Prima di poter partecipare a una partita, ogni client deve:
+Each mecha has **100 build points** split across six components. Each component
+must be between **5** and **70** points. The total must be exactly **100**.
 
-1. Aprire una connessione WebSocket verso `ws://<host>:<port>/ws`
-2. Inviare un messaggio JSON di tipo `register` con i
-   payload del mecha
-3. Attendere la risposta `registered` o `error`
+- Minimum per attribute: **5**
+- Maximum per attribute: **70**
+- Required fields: `generator`, `hull`, `shields`, `cannon`, `propulsion`, `radar`
 
-Il server valida il payload e risponde con esito positivo o con un errore
-descrittivo. Non è più richiesto un `callback_url` HTTP sul client: tutta la
-comunicazione di gioco avviene sulla stessa connessione WebSocket.
+### 2.2 Components
 
-### 3.2 Formato messaggio `register` (Client → Server)
+| Component   | Min | Max | Effect |
+|-------------|-----|-----|--------|
+| Generator   | 5   | 70  | Produces N energy at the start of each turn |
+| Hull        | 5   | 70  | Structural HP. At 0 → destroyed |
+| Shields     | 5   | 70  | Damage buffer. Max value = build points invested |
+| Cannon      | 5   | 70  | Max damage per shot = energy spent (≤ cannon build) |
+| Propulsion  | 5   | 70  | Max cells moved per turn = energy spent (≤ propulsion build) |
+| Radar       | 5   | 70  | Max energy spendable on SCAN per turn (= max scan radius) |
+
+Build points set the **per-turn cap** for each action type, not a fixed spend.
+Programs may use less than the maximum each turn.
+
+---
+
+## 3. Mecha Registration
+
+### 3.1 WebSocket Connection
+
+Before joining a match, each client must:
+
+1. Open a WebSocket to `ws://<host>:<port>/ws`
+2. Send a JSON `register` message with the mecha payload
+3. Wait for `registered` or `error`
+
+The server validates the payload. All gameplay uses the same WebSocket connection
+(no HTTP callback URL on the client).
+
+### 3.2 `register` Message (Client → Server)
 
 ```json
 {
@@ -85,28 +78,25 @@ comunicazione di gioco avviene sulla stessa connessione WebSocket.
 }
 ```
 
-| Campo     | Tipo   | Obbligatorio | Note |
-|-----------|--------|--------------|------|
-| `type`    | string | sì           | Deve essere `"register"` |
-| `name`    | string | sì           | Nome del mecha |
-| `version` | string | sì           | Versione del bot |
-| `author`  | string | sì           | Autore / team |
-| `build`   | object | sì           | Sei componenti interi, somma = 100 |
+| Field     | Type   | Required | Notes |
+|-----------|--------|----------|-------|
+| `type`    | string | yes      | Must be `"register"` |
+| `name`    | string | yes      | Mecha name (unique per server session) |
+| `version` | string | yes      | Bot/client version |
+| `author`  | string | yes      | Author or team |
+| `build`   | object | yes      | Six integers summing to 100 |
 
-Ogni attributo di `build` deve essere un intero ≥ 5 e ≤ 70.
+### 3.3 Server Validation
 
-### 3.3 Validazione Server
+On failure the server sends `error` and rejects registration:
 
-Il server esegue le seguenti verifiche in ordine. Al primo errore invia un
-messaggio `error` e rifiuta la registrazione.
+- All required fields present
+- Each build attribute is an integer 5–70
+- Build sum is exactly 100
+- Mecha name is **unique** among connected clients
+- Only one registration per WebSocket connection
 
-- Presenza di tutti i campi obbligatori (`name`, `version`, `author`, `build`)
-- Ogni attributo di `build` è un intero ≥ 5 e ≤ 70
-- La somma degli attributi di `build` è esattamente 100
-- Il nome del mecha è **unico nella sessione corrente**
-- Una sola registrazione per connessione WebSocket
-
-### 3.4 Risposta `registered` (Server → Client)
+### 3.4 `registered` Response (Server → Client)
 
 ```json
 {
@@ -118,7 +108,7 @@ messaggio `error` e rifiuta la registrazione.
 }
 ```
 
-Se la partita parte immediatamente (due client in lobby e connessi):
+If a match starts immediately (two lobby clients connected):
 
 ```json
 {
@@ -130,7 +120,7 @@ Se la partita parte immediatamente (due client in lobby e connessi):
 }
 ```
 
-### 3.5 Risposta `error` (Server → Client)
+### 3.5 `error` Response (Server → Client)
 
 ```json
 {
@@ -140,177 +130,154 @@ Se la partita parte immediatamente (due client in lobby e connessi):
 }
 ```
 
-### 3.6 Lobby e avvio automatico
+### 3.6 Lobby and Auto-Start
 
-Dopo una registrazione valida il client entra in **lobby** e attende un
-avversario. Quando **due client** sono in lobby **e entrambi hanno una
-connessione WebSocket attiva**, il server:
+After valid registration the client enters the **lobby**. When **two clients**
+are in the lobby and **both have an active WebSocket**, the server:
 
-1. Avvia automaticamente la partita
-2. Assegna le posizioni iniziali
-3. Invia `match_started` a entrambi
-4. Inizia il turno 1 inviando `action_request` al primo giocatore nell'ordine
-   stabilito
+1. Starts the match automatically
+2. Assigns random starting positions (minimum Manhattan distance, default **20**)
+3. Sends `match_started` to both
+4. Begins turn 1 with `action_request` to the first player in shuffled order
 
-Non è necessaria alcuna azione aggiuntiva da parte dei client.
+No extra client action is required.
 
 ---
 
-## 4. Campo di Battaglia
+## 4. Battlefield
 
-- Griglia discreta **100×100** celle (coordinate da `[0,0]` a `[99,99]`)
-- Il campo ha confini fisici: non è possibile uscire dalla griglia
-- Due veicoli non possono occupare la stessa cella
-- Le posizioni di partenza sono assegnate dal server (casuali, con distanza
-  Manhattan minima configurabile, default **20** celle)
-
----
-
-## 5. Struttura del Turno
-
-La partita si svolge a turni numerati progressivamente (`turn` = 1, 2, 3, …).
-In ogni turno il server contatta i client **nell'ordine stabilito all'inizio
-della partita** (ordine casuale, fisso per tutta la partita).
-
-Ogni client, quando è il proprio momento:
-
-1. Riceve `action_request` con lo stato aggiornato del proprio veicolo
-2. Risponde con un messaggio `action` entro il timeout configurato
-3. Riceve `result` a fine turno (dopo che entrambi hanno agito, se la partita
-   continua)
-
-**Ogni client esegue esattamente una azione per turno** (MOVE, FIRE, SCAN o
-IDLE).
-
-### 5.1 Azioni disponibili
-
-| Azione | Costo energia | Parametri | Effetto |
-|--------|---------------|-----------|---------|
-| **MOVE** | `energy` (≤ punti propulsione) | `dx`, `dy` | Sposta il veicolo. `\|dx\| + \|dy\| ≤ energy` |
-| **FIRE** | `energy` (≤ punti cannone) | `target_x`, `target_y` | Colpo istantaneo. Danno = `energy` se a segno |
-| **SCAN** | `energy` (≤ punti radar, > 0) | `scan_x`, `scan_y` | Area scan: raggio = energia investita; rivela posizione esatta se il nemico è nel raggio |
-| **IDLE** | 0 | — | Nessuna azione. L'energia non spesa va persa |
+- Discrete grid **100×100** (coordinates `[0,0]` … `[99,99]`)
+- Hard boundaries — cannot leave the grid
+- Two vehicles cannot occupy the same cell
+- Start positions are server-assigned (random, min distance configurable)
 
 ---
 
-## 6. Sistema Energetico
+## 5. Turn Structure
 
-### 6.1 Produzione
+Turns are numbered 1, 2, 3, … The server contacts clients in a **fixed random
+order** chosen at match start.
 
-All'**inizio di ogni turno** (prima della richiesta di azione) il generatore
-eroga energia pari ai propri punti build. L'energia non utilizzata entro la
-fine del turno **va persa** (non si accumula).
+Each client, when it is their slot in the turn:
 
-### 6.2 Rigenerazione scudi (inizio turno)
+1. Receives `action_request` with updated vehicle state
+2. Sends an `action` message within the configured timeout
+3. Receives `result` after the full turn resolves (both players acted, if the match continues)
 
-Prima della richiesta di azione, se gli scudi sono sotto il massimo **e**
-l'energia disponibile è ≥ 1:
+**Exactly one action per client per turn:** MOVE, FIRE, SCAN, or IDLE.
 
-- Gli scudi aumentano di **1** punto
-- L'energia disponibile diminuisce di **1**
+### 5.1 Actions
 
-Se l'energia è 0 dopo la produzione, gli scudi non si rigenerano quel turno.
-
-### 6.3 Utilizzo in azione
-
-In ogni turno il client sceglie **una sola azione** e, se applicabile, quanta
-energia investirvi (campo `energy`):
-
-- L'energia assegnata all'azione non può superare i punti build del componente
-  corrispondente
-- L'energia assegnata non può superare l'energia disponibile quel turno
-- Se l'energia richiesta supera quella disponibile, il server usa il minimo tra richiesta e disponibile (solo per azioni non-IDLE)
-
-*Esempio: veicolo con Generatore 20, Cannone 15. In un turno può eseguire FIRE
-con `energy: 15` oppure MOVE con `energy: 10`, ma non entrambe.*
+| Action | Energy cost | Parameters | Effect |
+|--------|-------------|------------|--------|
+| **MOVE** | `energy` (≤ propulsion) | `dx`, `dy` | Move; `\|dx\| + \|dy\| ≤ energy` |
+| **FIRE** | `energy` (≤ cannon) | `target_x`, `target_y` | Instant shot; damage = energy if hit |
+| **SCAN** | `energy` (≤ radar, > 0) | `scan_x`, `scan_y` | Active scan; radius = energy (Manhattan) |
+| **IDLE** | 0 | — | No action; unused energy is lost |
 
 ---
 
-## 7. Movimento
+## 6. Energy System
 
-L'azione **MOVE** consuma `energy` ≤ punti propulsione. Il veicolo si sposta
-di `dx` celle sull'asse X e `dy` celle sull'asse Y, con il vincolo:
+### 6.1 Production
+
+At the **start of each turn** (before `action_request`), the generator restores
+energy equal to its build value. Unused energy at end of turn is **lost** (no
+banking).
+
+### 6.2 Shield Regeneration (Start of Turn)
+
+Before `action_request`, if shields are below max **and** energy ≥ 1:
+
+- Shields increase by **1**
+- Energy decreases by **1**
+
+If energy is 0 after production, shields do not regenerate that turn.
+
+### 6.3 Action Spend
+
+Each turn the client picks one action and optional `energy`:
+
+- Spend cannot exceed the component build cap
+- Spend cannot exceed available energy
+- Invalid actions are treated as **IDLE** (see §16)
+
+*Example: Generator 20, Cannon 15 — either FIRE with energy 15 or MOVE with
+energy 10, not both.*
+
+---
+
+## 7. Movement
+
+**MOVE** spends `energy` ≤ propulsion. The vehicle moves by `dx` on X and `dy`
+on Y with:
 
 **`|dx| + |dy| ≤ energy`**
 
-- Il veicolo può muoversi in qualsiasi direzione (non ha un orientamento fisso)
-- Il movimento deve restare entro i confini `[0,99] × [0,99]`
-- Se la cella di destinazione è occupata dall'avversario, il movimento viene
-  annullato (il veicolo rimane fermo ma l'energia è consumata)
+- Any direction (no fixed facing)
+- Must stay within `[0,99] × [0,99]`
+- If the destination cell is occupied by the opponent, movement is cancelled
+  (vehicle stays put; energy is still spent)
 
 ---
 
-## 8. Combattimento
+## 8. Combat
 
-### 8.1 Sparo
+### 8.1 Firing
 
-L'azione **FIRE** designa una cella bersaglio (`target_x`, `target_y`) e
-investe `energy` ≤ punti cannone. Il colpo è istantaneo.
+**FIRE** targets cell (`target_x`, `target_y`) with `energy` ≤ cannon.
 
-- Se la cella bersaglio coincide con la posizione dell'avversario: **COLPO A
-  SEGNO**
-- Altrimenti: **MANCATO**. L'energia è consumata comunque
+- Target equals opponent position → **HIT**
+- Otherwise → **MISS** (energy still spent)
 
-### 8.2 Feedback del colpo
+### 8.2 Fire Feedback
 
-Dopo ogni FIRE il veicolo sparante riceve un feedback immediato (incluso in
-`action_request` del turno successivo come `last_fire_feedback`, e nel
-`result` del turno corrente):
+After FIRE, the shooter receives feedback (in the next `action_request` as
+`last_fire_feedback`, and in the current turn `result`):
 
-- `hit`: `true` / `false` — se il colpo è andato a segno
-- `distance`: distanza Manhattan tra la cella sparata e la posizione reale
-  dell'avversario
-- `turn`: numero del turno in cui è avvenuto il colpo
+- `hit`: boolean
+- `distance`: Manhattan distance from target cell to opponent’s true position
+- `turn`: turn number of the shot
 
-### 8.3 Applicazione del danno
+### 8.3 Damage
 
-Il danno di un colpo a segno è pari all'`energy` investita nel FIRE. Il danno
-viene assorbito nell'ordine:
+On a hit, damage equals `energy` spent on FIRE. Application order:
 
-**Scudi → Corazza**
+**Shields → Hull**
 
-- Prima si sottrae dai punti scudo correnti
-- L'eccesso intacca la corazza
-- Quando la corazza raggiunge **0** il veicolo è distrutto: la partita termina
-  (salvo distruzione simultanea nello stesso turno)
-- La corazza **non si rigenera** mai
+- Shields absorb first; overflow damages hull
+- Hull at **0** → vehicle destroyed (match ends unless simultaneous destruction)
+- Hull **never regenerates**
 
 ---
 
-## 9. Scudi
+## 9. Shields
 
-- Valore massimo degli scudi = punti build investiti in Scudi
-- Gli scudi si rigenerano automaticamente di **1** punto per turno (inizio
-  turno, vedi §6.2)
-- La rigenerazione consuma **1** punto di energia
-- Gli scudi non possono superare il loro valore massimo
+- Max shields = shield build points
+- Regenerate **+1** per turn at start of turn (costs 1 energy) — see §6.2
+- Cannot exceed max shields
 
 ---
 
-## 10. Radar
+## 10. Radar (SCAN)
 
-### 10.1 Funzionamento
+### 10.1 Active Scan
 
-L'azione **SCAN** è attiva: il radar non funziona passivamente. Il programma
-deve sceglierla come azione del turno, investire `energy` > 0 (con
-`energy` ≤ punti radar) e indicare il **centro dell'area** (`scan_x`,
-`scan_y`).
+**SCAN** is an explicit turn action. Spend `energy` > 0 (≤ radar build) and
+choose scan center (`scan_x`, `scan_y`).
 
-- **Raggio di scansione** = `energy` investita nel turno (distanza Manhattan)
-- L'area coperta è tutte le celle la cui distanza Manhattan da
-  (`scan_x`, `scan_y`) è ≤ raggio
-- Se la posizione reale dell'avversario è nell'area: `found: true` con
-  coordinate esatte `x`, `y`
-- Se l'avversario è fuori dall'area: `found: false` (nessuna posizione rivelata)
-- Senza SCAN il veicolo non conosce la posizione dell'avversario (eccetto il
-  feedback dei colpi)
+- **Scan radius** = `energy` invested (Manhattan distance)
+- Area = all cells where Manhattan distance from (`scan_x`, `scan_y`) ≤ radius
+- Opponent inside area → `found: true` with exact `x`, `y`
+- Opponent outside → `found: false` (no position revealed)
+- Without SCAN, opponent position is unknown (except via fire feedback)
 
-### 10.2 Risultato (`last_scan`)
+### 10.2 `last_scan` Result
 
-Dopo uno SCAN, il veicolo riceve `last_scan` nel turno successivo (e nel
-`result` del turno corrente come `scan_result`):
+After SCAN, the client receives `last_scan` on the next turn (and `scan_result`
+in the current `result`):
 
-**Avversario trovato**
+**Enemy found**
 
 ```json
 {
@@ -324,7 +291,7 @@ Dopo uno SCAN, il veicolo riceve `last_scan` nel turno successivo (e nel
 }
 ```
 
-**Avversario non trovato**
+**Not found**
 
 ```json
 {
@@ -338,86 +305,79 @@ Dopo uno SCAN, il veicolo riceve `last_scan` nel turno successivo (e nel
 
 ---
 
-## 11. Condizioni di fine partita
+## 11. End Conditions
 
-| Esito | Condizione |
-|-------|------------|
-| **VITTORIA** | La corazza dell'avversario raggiunge 0 |
-| **PAREGGIO** | Entrambi i veicoli distrutti nello stesso turno (es. colpi in sequenza nello stesso turno) |
-| **TIMEOUT / ABBANDONO** | Un client non risponde entro il tempo limite → perde per abbandono |
-| **DISCONNESSIONE** | Un client chiude la WebSocket durante la partita → l'avversario vince per abbandono |
-| **TURNO MASSIMO** | Superato il numero massimo di turni (default **500**) → vince chi ha più corazza; pareggio in caso di parità |
-| **ADMIN** | Un operatore forza la fine via `POST /match/:id/end` → esito **DRAW** |
-
----
-
-## 12. Architettura di sistema
-
-### 12.1 Ruoli
-
-| Componente | Ruolo |
-|--------------|-------|
-| **Server Node.js** | Lobby, simulazione, turni, fisica, WebSocket di gioco, REST di monitoraggio |
-| **Client (bot / GUI)** | Si connette via WebSocket, registra il mecha, risponde alle `action_request` |
-| **Console di monitoraggio** | Qualsiasi client HTTP che consuma gli endpoint REST in lettura o esegue azioni admin |
-
-### 12.2 Flusso di una partita
-
-1. Il client apre `ws://host:port/ws` e invia `register`
-2. Il server valida e mette il client in lobby
-3. Quando due client sono in lobby e connessi, il server avvia la partita
-4. Il server invia `match_started` a entrambi
-5. Per ogni turno, per ogni client nell'ordine stabilito:
-   - invia `action_request`
-   - attende messaggio `action` entro il timeout
-   - applica l'azione (o forfeit se timeout)
-6. A fine turno invia `result` a entrambi
-7. A partita conclusa invia `gameover` a entrambi
-
-### 12.3 Protocollo WebSocket (gioco)
-
-Endpoint: **`ws://<host>:<port>/ws`**
-
-Tutti i messaggi sono JSON con campo `type`.
-
-#### Client → Server
-
-| `type` | Quando | Payload principale |
-|--------|--------|-------------------|
-| `register` | Alla connessione | `name`, `version`, `author`, `build` |
-| `action` | Risposta a `action_request` | `turn`, `action`, parametri azione |
-
-#### Server → Client
-
-| `type` | Quando | Payload principale |
-|--------|--------|-------------------|
-| `registered` | Dopo registrazione OK | `client_id`, `status`, `match_id` |
-| `error` | Errore validazione / protocollo | `error`, `field` (opzionale) |
-| `match_started` | Inizio partita | `match_id` |
-| `action_request` | Tocca al client agire | `turn`, `vehicle`, `last_scan`, `last_fire_feedback`, `timeout_ms` |
-| `result` | Fine turno | `turn`, `vehicle`, `your_action`, `opponent_action`, `damage_taken` |
-| `gameover` | Fine partita | `match_id`, `outcome` (WIN/LOSE/DRAW), `reason`, `turn`, `vehicle` |
-
-### 12.4 Endpoint REST (monitoraggio)
-
-Gli endpoint di monitoraggio sono esposti dal server per osservazione e
-amministrazione. Quelli di **lettura** sono pubblici; le azioni admin
-richiedono header `Authorization: Bearer <adminToken>` (o token raw).
-
-| Endpoint | Metodo | Auth | Scopo |
-|----------|--------|------|-------|
-| `GET /status` | GET | — | Stato generale: uptime, lobby, partite attive, client connessi |
-| `GET /client/:id` | GET | — | Stato client: nome, status, match_id, connected |
-| `GET /match/:id` | GET | — | Snapshot partita: turno, posizioni, HP, scudi |
-| `GET /match/:id/history` | GET | — | Log turno per turno (partita in corso o ultima conclusa in memoria) |
-| `POST /match/:id/end` | POST | Admin | Forza fine partita con esito **DRAW** |
-| `DELETE /client/:id` | DELETE | Admin | Rimuove client da lobby; se in partita → abbandono (WIN avversario) |
+| Outcome | Condition |
+|---------|-----------|
+| **WIN** | Opponent hull reaches 0 |
+| **DRAW** | Both destroyed same turn |
+| **FORFEIT / TIMEOUT** | Client misses action deadline |
+| **DISCONNECT** | WebSocket closes mid-match → opponent wins |
+| **MAX TURNS** | Turn > 500 (default) → higher hull wins; tie = DRAW |
+| **ADMIN** | `POST /match/:id/end` → forced DRAW |
 
 ---
 
-## 13. Formato JSON
+## 12. System Architecture
 
-### 13.1 Stato veicolo (in `action_request`)
+### 12.1 Roles
+
+| Component | Role |
+|-----------|------|
+| **Node.js server** | Lobby, simulation, WebSocket game, REST monitoring |
+| **Client (bot / GUI / LLM)** | WebSocket connect, register, respond to `action_request` |
+| **Monitor console** | HTTP consumer of REST read endpoints |
+
+### 12.2 Match Flow
+
+1. Client opens `ws://host:port/ws`, sends `register`
+2. Server validates, adds to lobby
+3. Two connected lobby clients → match starts
+4. Server sends `match_started`
+5. Each turn, for each client in order: `action_request` → wait `action` → apply
+6. End of turn: `result` to both
+7. Match end: `gameover` to both
+
+### 12.3 WebSocket Protocol
+
+Endpoint: **`ws://<host>:<port>/ws`** — all messages JSON with `type`.
+
+**Client → Server**
+
+| `type` | When | Payload |
+|--------|------|---------|
+| `register` | On connect | `name`, `version`, `author`, `build` |
+| `action` | Turn response | `turn`, `action`, action fields |
+
+**Server → Client**
+
+| `type` | When | Payload |
+|--------|------|---------|
+| `registered` | After OK register | `client_id`, `status`, `match_id` |
+| `error` | Validation failure | `error`, `field?` |
+| `match_started` | Match begins | `match_id` |
+| `action_request` | Your turn | `turn`, `vehicle`, `last_scan`, `last_fire_feedback`, `timeout_ms` |
+| `result` | Turn done | `turn`, `vehicle`, `your_action`, `opponent_action`, `damage_taken` |
+| `gameover` | Match end | `outcome`, `reason`, `turn`, `vehicle` |
+
+### 12.4 REST Monitoring
+
+Read endpoints are public. Admin actions need `Authorization: Bearer <adminToken>`.
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `GET /status` | GET | — | Uptime, lobby, matches |
+| `GET /client/:id` | GET | — | Client status |
+| `GET /match/:id` | GET | — | Live snapshot |
+| `GET /match/:id/history` | GET | — | Turn log (in memory) |
+| `POST /match/:id/end` | POST | Admin | Force DRAW |
+| `DELETE /client/:id` | DELETE | Admin | Remove client / forfeit |
+
+---
+
+## 13. JSON Formats
+
+### 13.1 Vehicle State (`action_request`)
 
 ```json
 {
@@ -441,97 +401,61 @@ richiedono header `Authorization: Bearer <adminToken>` (o token raw).
       "radar": 20
     }
   },
-  "last_scan": {
-    "found": true,
-    "x": 60,
-    "y": 44,
-    "scan_x": 55,
-    "scan_y": 40,
-    "radius": 8,
-    "turn": 41
-  },
+  "last_scan": null,
   "last_fire_feedback": { "hit": false, "distance": 12, "turn": 41 }
 }
 ```
 
-`last_scan` e `last_fire_feedback` possono essere `null`.
+### 13.2 Actions (Client → Server)
 
-### 13.2 Azione (Client → Server)
-
-Il messaggio deve includere `type: "action"` e il `turn` corrispondente alla
-richiesta pendente.
+Include `type: "action"` and matching `turn`.
 
 **MOVE**
 
 ```json
-{
-  "type": "action",
-  "turn": 42,
-  "action": "MOVE",
-  "energy": 8,
-  "dx": 3,
-  "dy": -5
-}
+{ "type": "action", "turn": 42, "action": "MOVE", "energy": 8, "dx": 3, "dy": -5 }
 ```
 
 **FIRE**
 
 ```json
-{
-  "type": "action",
-  "turn": 42,
-  "action": "FIRE",
-  "energy": 15,
-  "target_x": 60,
-  "target_y": 44
-}
+{ "type": "action", "turn": 42, "action": "FIRE", "energy": 15, "target_x": 60, "target_y": 44 }
 ```
 
 **SCAN**
 
 ```json
-{
-  "type": "action",
-  "turn": 42,
-  "action": "SCAN",
-  "energy": 8,
-  "scan_x": 55,
-  "scan_y": 40
-}
+{ "type": "action", "turn": 42, "action": "SCAN", "energy": 8, "scan_x": 55, "scan_y": 40 }
 ```
 
-Il campo `energy` definisce sia il costo sia il **raggio** dell'area scansionata.
+`energy` is both cost and **scan radius**.
 
 **IDLE**
 
 ```json
-{
-  "type": "action",
-  "turn": 42,
-  "action": "IDLE"
-}
+{ "type": "action", "turn": 42, "action": "IDLE" }
 ```
 
-### 13.3 Risultato turno (`result`)
+### 13.3 Turn Result (`result`)
 
 ```json
 {
   "type": "result",
   "turn": 42,
-  "vehicle": { "...": "stato aggiornato" },
+  "vehicle": { "...": "updated state" },
   "your_action": {
     "energy_spent": 8,
     "moved": true,
     "damage_dealt": 0,
     "fire_feedback": null,
-    "scan_result": null
+    "scan_result": { "found": false, "scan_x": 55, "scan_y": 40, "radius": 8 }
   },
   "opponent_action": { "action": "FIRE" },
   "damage_taken": 0
 }
 ```
 
-### 13.4 Fine partita (`gameover`)
+### 13.4 Game Over (`gameover`)
 
 ```json
 {
@@ -544,74 +468,64 @@ Il campo `energy` definisce sia il costo sia il **raggio** dell'area scansionata
 }
 ```
 
-Valori di `outcome`: `WIN`, `LOSE`, `DRAW`.
-
-Valori comuni di `reason`: `destruction`, `timeout`, `forfeit`, `max_turns`,
+`outcome`: `WIN`, `LOSE`, `DRAW`.  
+Common `reason` values: `destruction`, `timeout`, `forfeit`, `max_turns`,
 `simultaneous_destruction`, `admin_end`.
 
 ---
 
-## 14. Interfaccia MCP per LLM
+## 14. MCP Layer for LLM Pilots
 
-Il layer MCP è implementato nel progetto **`MechaMind_mdc`** (Python): espone
-registrazione, attesa turno e invio azioni come tool MCP, usando lo stesso
-protocollo WebSocket descritto in questo documento.
+An external **MCP adapter** is provided in the **`MechaMind_mdc`** project
+(Python). It wraps the same WebSocket protocol as MCP tools:
 
-Vedi [MechaMind_mdc/README.md](../MechaMind_mdc/README.md). Versione inglese
-delle regole: [MechaMind_Rules_v1.md](./MechaMind_Rules_v1.md) §14.
+- `mechamind_register_pilot` — register via WebSocket
+- `mechamind_wait_for_turn` — receive `action_request`
+- `mechamind_submit_action` — send MOVE / FIRE / SCAN / IDLE
+- Plus monitoring helpers and a concise rules tool
+
+Two LLM agents can fight by using different `pilot_name` values against one
+MechaMind server. See [MechaMind_mdc/README.md](../MechaMind_mdc/README.md).
+
+The core server does **not** embed MCP; clients may also use WebSocket directly
+(GUI, Node bots) or any custom adapter.
 
 ---
 
-## 15. Configurazione server
+## 15. Server Configuration
 
-Parametri in `config/default.json`, sovrascrivibili via variabili d'ambiente:
+`config/default.json`, overridable via environment:
 
-| Parametro | Default | Env | Descrizione |
+| Parameter | Default | Env | Description |
 |-----------|---------|-----|-------------|
-| `port` | `3000` | `PORT` | Porta HTTP + WebSocket |
-| `gridSize` | `100` | — | Dimensione griglia |
-| `turnTimeoutMs` | `180000` (3 min) | `TURN_TIMEOUT_MS` | Timeout risposta azione |
-| `maxTurns` | `500` | `MAX_TURNS` | Turni massimi per partita |
-| `minStartDistance` | `20` | — | Distanza Manhattan minima tra spawn |
-| `adminToken` | `admin-secret` | `ADMIN_TOKEN` | Token azioni admin |
-| `logLevel` | `info` | `LOG_LEVEL` | Livello log (`debug`, `info`, `warn`, `error`) |
-
-Avvio:
+| `port` | 3000 | `PORT` | HTTP + WebSocket port |
+| `gridSize` | 100 | — | Grid dimension |
+| `turnTimeoutMs` | 180000 (3 min) | `TURN_TIMEOUT_MS` | Action deadline |
+| `maxTurns` | 500 | `MAX_TURNS` | Max turns per match |
+| `minStartDistance` | 20 | — | Min Manhattan spawn distance |
+| `adminToken` | `admin-secret` | `ADMIN_TOKEN` | Admin API token |
+| `logLevel` | `info` | `LOG_LEVEL` | `debug`, `info`, `warn`, `error` |
 
 ```bash
 npm start
-# oppure, es. 5 minuti per turno:
 TURN_TIMEOUT_MS=300000 npm start
 ```
 
 ---
 
-## 16. Note di implementazione
+## 16. Implementation Notes
 
-- Il server valida tutte le azioni: un'azione **non valida** (energia
-  insufficiente, coordinate fuori griglia, tipo sconosciuto, ecc.) viene
-  trattata come **IDLE** senza penalità aggiuntive
-- Se il client **non risponde** entro `timeout_ms`, perde la partita per
-  **abbandono** (non viene convertito in IDLE)
-- L'ordine dei turni viene sorteggiato all'inizio e rimane fisso per tutta la
-  partita
-- Lo stato dell'avversario **non è mai esposto** direttamente: l'unica
-  informazione ottenibile è tramite SCAN e feedback dei colpi
-- La partita parte solo quando **entrambi** i client in lobby hanno WebSocket
-  attiva (evita race condition all'avvio)
-- Lo storico partite (`GET /match/:id/history`) è mantenuto **in memoria**;
-  non c'è persistenza su database
+- Invalid actions (bad coords, over-cap energy, etc.) become **IDLE** without extra penalty
+- **No response** within `timeout_ms` → **forfeit** (not auto-IDLE)
+- Turn order is random at start and fixed for the match
+- Opponent state is **never** sent directly — only SCAN and fire feedback reveal information
+- Match starts only when **both** lobby clients have active WebSocket (avoids race at start)
+- Match history is **in-memory only** — no database persistence
 
 ---
 
-## Appendice A — Migrazione da v1.0 (HTTP callback)
+## Appendix A — Migration from v1.0 (HTTP Callback)
 
-La versione originale del regolamento (docx v1.0) prevedeva:
-
-- `POST /register`, `POST /action`, `POST /result`, `POST /gameover` sul **client**
-- Campo obbligatorio `callback_url` con health-check HTTP
-- Timeout default **5 secondi**
-
-La implementazione corrente sostituisce il flusso callback con **WebSocket
-bidirezionale** e REST solo per monitoraggio. Le regole di gioco (build,
-movimento, danno, radar, scudi) restano invariate.
+Original docx v1.0 used HTTP callbacks on the client (`callback_url`, 5s timeout).
+Current implementation uses **bidirectional WebSocket** plus REST for monitoring.
+Core game rules (build, movement, damage, scan, shields) are unchanged.

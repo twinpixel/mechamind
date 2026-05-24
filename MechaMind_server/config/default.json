@@ -1,0 +1,9 @@
+{
+  "port": 3000,
+  "gridSize": 100,
+  "turnTimeoutMs": 180000,
+  "maxTurns": 500,
+  "minStartDistance": 20,
+  "adminToken": "admin-secret",
+  "logLevel": "info"
+}

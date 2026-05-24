@@ -1,0 +1,26 @@
+{
+  "name": "mechamind-robot",
+  "version": "1.0.0",
+  "description": "Framework Node.js per bot MechaMind",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node examples/HunterBot.js",
+    "bot1": "node examples/HunterBot.js",
+    "bot2": "node examples/HunterBot2.js",
+    "hunter": "node examples/HunterBot.js",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "mechamind",
+    "bot",
+    "websocket"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.1"
+  }
+}

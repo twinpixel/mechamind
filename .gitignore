@@ -1,0 +1,69 @@
+# MechaMind monorepo — shared ignore rules
+# Subprojects (MechaMind_*) also have their own .gitignore for stack-specific patterns.
+
+# --- OS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# --- IDE ---
+.idea/
+*.iml
+.vscode/
+!.vscode/extensions.json
+*.code-workspace
+
+# --- Secrets (all subprojects) ---
+.env
+.env.*
+!.env.example
+
+# --- Node.js (server, robot, console) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+coverage/
+.nyc_output/
+
+# --- Python (mdc) ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# --- Flutter / Dart (gui) ---
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+**/doc/api/
+**/ios/Flutter/.last_build_id
+**/.cxx/
+
+# Flutter/Xcode ephemeral (platform folders may also ignore these)
+**/Flutter/ephemeral/
+**/Pods/
+**/xcuserdata/
+
+# --- Logs ---
+logs/
+*.log

@@ -111,13 +111,45 @@ export class GameState {
       this.clientGateway.isConnected(id)
     ).length;
 
+    const lobby = [...this.lobby.values()].map((c) => ({
+      client_id: c.id,
+      name: c.name,
+    }));
+
+    const matches = [...this.matches.values()].map((m) => ({
+      id: m.id,
+      status: m.status,
+      turn: m.turn,
+      clients: m.turnOrder.map((id) => ({
+        client_id: id,
+        name: m.clientMap[id].name,
+      })),
+    }));
+
+    const lastFinished = this.lastFinishedMatch;
+
     return {
       uptime_ms: this.uptimeMs,
       lobby_count: this.lobby.size,
+      lobby,
       active_matches: activeMatches,
       total_matches: this.matches.size,
+      matches,
       registered_clients: this.clients.size,
       connected_clients: connectedClients,
+      last_finished_match: lastFinished
+        ? {
+            id: lastFinished.id,
+            status: lastFinished.status,
+            turn: lastFinished.turn,
+            winner_id: lastFinished.winnerId,
+            end_reason: lastFinished.endReason,
+            clients: lastFinished.turnOrder.map((id) => ({
+              client_id: id,
+              name: lastFinished.clientMap[id].name,
+            })),
+          }
+        : null,
     };
   }
 

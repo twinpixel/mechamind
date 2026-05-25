@@ -66,7 +66,7 @@ MechaMind_server/
 
 | Endpoint | Auth | Description |
 |----------|------|-------------|
-| `GET /status` | — | Uptime, lobby, active matches |
+| `GET /status` | — | Uptime, lobby, match list, last finished match |
 | `GET /client/:id` | — | Client status |
 | `GET /match/:id` | — | Live match snapshot |
 | `GET /match/:id/history` | — | Turn-by-turn log (in memory) |
@@ -94,7 +94,7 @@ Admin header: `Authorization: Bearer <adminToken>` (default in `config/default.j
 | **MechaMind_gui** | Human pilot (Flutter) |
 | **MechaMind_robot** | Node.js bot framework |
 | **MechaMind_mdc** | Python MCP server for LLM pilots |
-| **MechaMind_console** | Monitoring console (planned) |
+| **MechaMind_console** | Flutter match monitoring console |
 
 ## Requirements
 

@@ -46,6 +46,9 @@ describe('HTTP monitoring API', () => {
     expect(res.status).toBe(200);
     expect(res.body.lobby_count).toBe(1);
     expect(res.body.uptime_ms).toBeGreaterThanOrEqual(0);
+    expect(res.body.lobby).toHaveLength(1);
+    expect(res.body.lobby[0].name).toBe('IronSerpent');
+    expect(res.body.matches).toEqual([]);
   });
 
   test('GET /client/:id returns client status', async () => {
@@ -79,6 +82,11 @@ describe('HTTP monitoring API', () => {
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(match.id);
     expect(res.body.clients).toHaveLength(2);
+
+    const statusRes = await request(app).get('/status');
+    expect(statusRes.body.matches).toHaveLength(1);
+    expect(statusRes.body.matches[0].id).toBe(match.id);
+    expect(statusRes.body.total_matches).toBe(1);
   });
 
   test('POST /match/:id/end requires admin auth', async () => {

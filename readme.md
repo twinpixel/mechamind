@@ -1,21 +1,84 @@
 # MECHAMIND
 
-**Technical Rules v1.1**
+**Turn-based mecha combat — both pilots are LLM agents**
 
-*Turn-based combat between program-controlled vehicles*
+MechaMind is a **100×100** grid battle where two mechas fight turn by turn. The
+server runs the rules; **each pilot is a program that chooses actions**. The main
+use case is **two LLMs dueling**: each model receives its vehicle state through
+[MCP](https://modelcontextprotocol.io) tools, reasons about movement, scanning,
+and firing, and sends one action per turn over WebSocket.
 
-> Converted from `MechaMind_Regolamento_v1.docx` and aligned with the Node.js
-> server in this repository (WebSocket gameplay, read-only REST monitoring).
-> Italian version: [MechaMind_Regolamento_v1.md](./MechaMind_Regolamento_v1.md)
+You can also play with the Flutter GUI, Node.js bots, or a custom WebSocket
+client — but the project is built around **LLM vs LLM** matches in Cursor (or any
+MCP-compatible host).
+
+> Rules aligned with the Node.js server in this repo (WebSocket gameplay,
+> read-only REST monitoring). Derived from `MechaMind_Regolamento_v1.docx`.
+
+---
+
+## LLM vs LLM — quick start
+
+1. **Start the game server**
+
+   ```bash
+   cd MechaMind_server
+   npm install
+   npm start
+   ```
+
+   WebSocket: `ws://127.0.0.1:3000/ws` — REST monitoring: `http://127.0.0.1:3000`
+
+2. **Run the MCP adapter** (Python tools for LLM pilots)
+
+   ```bash
+   cd MechaMind_mcp
+   python3 -m venv .venv && source .venv/bin/activate
+   pip install -e ".[dev]"
+   ```
+
+   Configure Cursor MCP as described in
+   [MechaMind_mcp/README.md](./MechaMind_mcp/README.md).
+
+3. **Register two pilots** (two agents or two chats, same MCP server, different names)
+
+   - Agent A: `mechamind_register_pilot(pilot_name="LLM_A", mecha_name="AlphaMind", …)`
+   - Agent B: `mechamind_register_pilot(pilot_name="LLM_B", mecha_name="BetaMind", …)`
+
+   When the **second** mecha registers, the server starts the match automatically.
+
+4. **Play the match** — each LLM loops:
+
+   - `mechamind_wait_for_turn(pilot_name)` — blocks until `action_request`
+   - Decide build spend: MOVE, FIRE, SCAN, or IDLE
+   - `mechamind_submit_action(pilot_name, turn, action, …)`
+
+   Call `mechamind_rules` anytime for a concise rule summary tuned for models.
+
+Optional: watch the battle with **MechaMind_console** (Flutter) or **MechaMind_gui**
+(human vs bot / human vs human).
+
+### Repository layout
+
+| Directory | Role |
+|-----------|------|
+| **MechaMind_server** | Authoritative rules engine, WebSocket + REST |
+| **MechaMind_mcp** | **MCP server for LLM pilots** (register, wait, act) |
+| **MechaMind_gui** | Flutter client (human pilot) |
+| **MechaMind_robot** | Reference Node.js bot |
+| **MechaMind_console** | Match monitoring console |
 
 ---
 
 ## 1. Overview
 
-MechaMind is a turn-based combat game for two vehicles controlled by programs
-(remote bots, the Flutter GUI, or LLM agents via MCP). Combat takes place on a
-discrete **100×100** grid. You win by destroying the opponent’s vehicle — reducing
-**Hull** to zero.
+MechaMind is turn-based combat for two vehicles on a discrete **100×100** grid.
+Each turn, a pilot program (typically an **LLM** using MCP) receives partial
+battlefield information and must pick **exactly one** action. You win by
+destroying the opponent — reducing **Hull** to zero.
+
+The sections below are the full **technical rules (v1.1)** for builds, protocol,
+and server behavior.
 
 ---
 
@@ -42,7 +105,7 @@ must be between **5** and **70** points. The total must be exactly **100**.
 | Radar       | 5   | 70  | Max energy spendable on SCAN per turn (= max scan radius) |
 
 Build points set the **per-turn cap** for each action type, not a fixed spend.
-Programs may use less than the maximum each turn.
+Pilots (LLM or bot) may use less than the maximum each turn.
 
 ---
 
@@ -325,8 +388,9 @@ in the current `result`):
 | Component | Role |
 |-----------|------|
 | **Node.js server** | Lobby, simulation, WebSocket game, REST monitoring |
-| **Client (bot / GUI / LLM)** | WebSocket connect, register, respond to `action_request` |
-| **Monitor console** | HTTP consumer of REST read endpoints |
+| **LLM pilot (MCP)** | Primary client: MCP tools → WebSocket `register` / `action` |
+| **Bot / GUI** | Alternative WebSocket clients (Node robot, Flutter GUI) |
+| **Monitor console** | HTTP consumer of REST read endpoints (spectator) |
 
 ### 12.2 Match Flow
 
@@ -474,21 +538,30 @@ Common `reason` values: `destruction`, `timeout`, `forfeit`, `max_turns`,
 
 ---
 
-## 14. MCP Layer for LLM Pilots
+## 14. MCP layer — how LLMs pilot a mecha
 
-An external **MCP adapter** is provided in the **`MechaMind_mdc`** project
-(Python). It wraps the same WebSocket protocol as MCP tools:
+The **`MechaMind_mcp`** package exposes the game as **MCP tools** so an LLM never
+needs raw WebSocket JSON: the adapter maintains one WebSocket per `pilot_name` and
+maps tool calls to the protocol below.
 
-- `mechamind_register_pilot` — register via WebSocket
-- `mechamind_wait_for_turn` — receive `action_request`
-- `mechamind_submit_action` — send MOVE / FIRE / SCAN / IDLE
-- Plus monitoring helpers and a concise rules tool
+| Tool | Purpose |
+|------|---------|
+| `mechamind_rules` | Rule summary for the model |
+| `mechamind_register_pilot` | Connect + `register` (build + mecha name) |
+| `mechamind_wait_for_turn` | Block until `action_request` for that pilot |
+| `mechamind_submit_action` | Send MOVE / FIRE / SCAN / IDLE |
+| `mechamind_list_pilots` / `mechamind_pilot_status` | Session state |
+| `mechamind_server_status` / `mechamind_match_snapshot` | REST monitoring |
 
-Two LLM agents can fight by using different `pilot_name` values against one
-MechaMind server. See [MechaMind_mdc/README.md](../MechaMind_mdc/README.md).
+**Two LLMs fighting:** use one MechaMind server and **two distinct `pilot_name`
+values** (and two different `mecha_name` values). Each agent runs its own
+register → wait → submit loop; the server alternates turns and resolves combat.
 
-The core server does **not** embed MCP; clients may also use WebSocket directly
-(GUI, Node bots) or any custom adapter.
+Full setup, Cursor `mcp.json`, and examples:
+[MechaMind_mcp/README.md](./MechaMind_mcp/README.md).
+
+The core server does **not** embed an LLM or MCP — it only enforces rules. Any
+client that speaks WebSocket (GUI, bots, MCP) can be a pilot.
 
 ---
 
@@ -507,8 +580,8 @@ The core server does **not** embed MCP; clients may also use WebSocket directly
 | `logLevel` | `info` | `LOG_LEVEL` | `debug`, `info`, `warn`, `error` |
 
 ```bash
-npm start
-TURN_TIMEOUT_MS=300000 npm start
+cd MechaMind_server && npm start
+cd MechaMind_server && TURN_TIMEOUT_MS=300000 npm start
 ```
 
 ---

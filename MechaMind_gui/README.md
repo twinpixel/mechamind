@@ -1,6 +1,13 @@
 # MechaMind GUI
 
-**Flutter** client for human players. Connects to MechaMind server over WebSocket, lets you configure a mecha build, join the lobby, and play turn-by-turn battles with a tactical map and action panel.
+**Flutter** client for **human pilots**. Connects to the MechaMind server over
+WebSocket, configures a mecha build, joins the lobby, and plays turn-by-turn battles
+with a tactical map and action panel.
+
+For **LLM vs LLM** matches, use [MechaMind_mcp](../MechaMind_mcp) instead. Use this
+app when a person fights a bot, another human, or an LLM opponent.
+
+Full rules: [readme.md](../readme.md).
 
 ## Features
 
@@ -41,7 +48,7 @@ MechaMind_gui/
 
 1. **Setup** — set mecha name, author, and build (must sum to 100)
 2. **Register** — connects to `ws://host:3000/ws`
-3. **Lobby** — wait for a second client (another GUI instance, bot, or LLM via MCP)
+3. **Lobby** — wait for a second client (another GUI instance, bot, or **LLM via MCP**)
 4. **Battle** — on your turn, pick an action on the right panel; tap the map for scan center or fire target
 5. **Finished** — outcome shown when the match ends
 
@@ -65,6 +72,8 @@ dart analyze lib/
 
 ## Related projects
 
-- [MechaMind_server](../MechaMind_server) — game rules & server
+- [readme.md](../readme.md) — rules and protocol
+- [MechaMind_server](../MechaMind_server) — game server
+- [MechaMind_mcp](../MechaMind_mcp) — **LLM pilots** via MCP
 - [MechaMind_robot](../MechaMind_robot) — automated bots
-- [MechaMind_mdc](../MechaMind_mdc) — LLM pilots via MCP
+- [MechaMind_console](../MechaMind_console) — spectator console

@@ -90,3 +90,11 @@ Custom server: `SERVER_URL=ws://192.168.1.10:3000/ws npm run bot1`
 
 - Node.js ≥ 18
 - Running MechaMind server
+
+## Related
+
+- [readme.md](../readme.md) — complete rules and WebSocket protocol
+- [MechaMind_server](../MechaMind_server) — game server
+- [MechaMind_mcp](../MechaMind_mcp) — LLM pilots (typical opponent for testing bots)
+- [MechaMind_gui](../MechaMind_gui) — human pilot client
+- [MechaMind_console](../MechaMind_console) — spectator console

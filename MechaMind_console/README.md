@@ -1,6 +1,10 @@
 # MechaMind Console
 
-**Flutter monitoring app** for live MechaMind matches. Read-only observer over the server REST API (no WebSocket registration required).
+**Flutter monitoring app** for live MechaMind matches. Read-only observer over the
+server REST API (no WebSocket registration). Ideal for watching **LLM vs LLM**
+battles while two MCP agents play.
+
+Full rules: [readme.md](../readme.md).
 
 ## Features
 
@@ -19,7 +23,6 @@
 ## Run
 
 ```bash
-cd MechaMind_console
 flutter pub get
 flutter run -d macos
 ```
@@ -38,8 +41,8 @@ Default server URL: `http://127.0.0.1:3000` (editable in the app).
 
 ## Typical workflow
 
-1. Start the server: `cd MechaMind_server && npm start`
-2. Start two pilots (GUI, robots, or MCP)
+1. Start the server: `cd ../MechaMind_server && npm start`
+2. Start two pilots (**LLM agents via MCP**, GUI, or robots)
 3. Open **MechaMind Console** and tap a match to watch
 
 ## Project layout
@@ -58,5 +61,7 @@ MechaMind_console/
 
 ## Related
 
-- [MechaMind_server](../MechaMind_server) — game server and rules
+- [readme.md](../readme.md) — rules and protocol
+- [MechaMind_server](../MechaMind_server) — game server
+- [MechaMind_mcp](../MechaMind_mcp) — LLM pilots
 - [MechaMind_gui](../MechaMind_gui) — human pilot client

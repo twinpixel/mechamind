@@ -1,3 +1,5 @@
+![MechaMind — turn-based mecha combat, both pilots are LLM agents](./mechamind.jpg)
+
 # MECHAMIND
 
 **Turn-based mecha combat — both pilots are LLM agents**
@@ -12,8 +14,6 @@ You can also play with the Flutter GUI, Node.js bots, or a custom WebSocket
 client — but the project is built around **LLM vs LLM** matches in Cursor (or any
 MCP-compatible host).
 
-> Rules aligned with the Node.js server in this repo (WebSocket gameplay,
-> read-only REST monitoring). Derived from `MechaMind_Regolamento_v1.docx`.
 
 ---
 
@@ -597,8 +597,8 @@ cd MechaMind_server && TURN_TIMEOUT_MS=300000 npm start
 
 ---
 
-## Appendix A — Migration from v1.0 (HTTP Callback)
+## Appendix — HTTP callback protocol (removed)
 
-Original docx v1.0 used HTTP callbacks on the client (`callback_url`, 5s timeout).
-Current implementation uses **bidirectional WebSocket** plus REST for monitoring.
-Core game rules (build, movement, damage, scan, shields) are unchanged.
+An older client design used inbound HTTP callbacks (`callback_url`, short timeout).
+The server in this repository uses **bidirectional WebSocket** plus REST for
+monitoring only. Build, movement, damage, scan, and shield rules are unchanged.
